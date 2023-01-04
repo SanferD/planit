@@ -23,9 +23,9 @@ class DateTimePickerFormField extends FormField<DateTime> {
                 }
               }
 
-              final now = DateTime.now();
-              final itemDateString = Utility.MMMEd(field.value ?? now);
-              final itemTimeString = Utility.formatTime(field.value ?? now);
+              final itemDateString = Utility.MMMEd(field.value ?? initialValue);
+              final itemTimeString =
+                  Utility.formatTime(field.value ?? initialValue);
               return Column(
                 children: [
                   Row(
@@ -38,8 +38,10 @@ class DateTimePickerFormField extends FormField<DateTime> {
                           final pickedDateTime = await showDatePicker(
                             context: field.context,
                             initialDate: initialValue,
-                            firstDate: now.subtract(const Duration(days: 30)),
-                            lastDate: now.add(const Duration(days: 30)),
+                            firstDate:
+                                initialValue.subtract(const Duration(days: 30)),
+                            lastDate:
+                                initialValue.add(const Duration(days: 30)),
                           );
                           if (pickedDateTime == null) return;
                           onChangedHandler(DateTime(

@@ -5,6 +5,7 @@ import 'package:planit/models/calendar_item.dart';
 import 'package:planit/models/schedule_type.dart';
 import 'package:planit/screens/calendar_item_screen.dart';
 import 'package:planit/utility.dart';
+import 'package:planit/screens/calendar_item_screen_arguments.dart';
 
 class CalendarScreen extends StatefulWidget {
   final DateTime now;
@@ -42,9 +43,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () async {
+              final arguments = CalendarItemScreenArguments(now: now);
               await Navigator.pushNamed(
                 context,
                 CalendarItemScreen.routeName,
+                arguments: arguments,
               );
               setState(() {
                 calendarItemsFuture = calendarItemBoundary.listCalendarItems(
@@ -120,10 +123,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 child: CalendarScreenListItem(
                   calendarItem: calendarItem,
                   onTap: () async {
+                    final arguments = CalendarItemScreenArguments(
+                      calendarItem: calendarItem,
+                      now: now,
+                    );
                     await Navigator.pushNamed(
                       context,
                       CalendarItemScreen.routeName,
-                      arguments: calendarItem,
+                      arguments: arguments,
                     );
                     setState(() {
                       calendarItemsFuture = calendarItemBoundary

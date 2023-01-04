@@ -6,10 +6,10 @@ import 'package:planit/models/calendar_item.dart';
 import 'package:planit/models/schedule_type.dart';
 import 'package:planit/widgets/radio_button_form_field.dart';
 import 'package:get_it/get_it.dart';
+import 'package:planit/screens/calendar_item_screen_arguments.dart';
 
 class CalendarItemScreen extends StatefulWidget {
   static const routeName = "/calendar-item";
-  CalendarItemScreen({super.key});
 
   @override
   State<CalendarItemScreen> createState() => _CalendarItemScreenState();
@@ -19,10 +19,12 @@ class _CalendarItemScreenState extends State<CalendarItemScreen> {
   @override
   Widget build(BuildContext context) {
     // fetch CalendarItem from arguments (edit), or create a new blank one (add)
-    final argumentObject = ModalRoute.of(context)!.settings.arguments;
-    final isAdd = argumentObject == null;
-    final calendarItem =
-        isAdd ? CalendarItem() : argumentObject as CalendarItem;
+    final arguments = ModalRoute.of(context)!.settings.arguments
+        as CalendarItemScreenArguments;
+    final isAdd = arguments.calendarItem == null;
+    final calendarItem = isAdd
+        ? CalendarItem.withDateTime(arguments.now)
+        : arguments.calendarItem!;
 
     // convert schedule type enum to list of {"value": <>, "display":}
     // which is used by radio button form field to present radio buttons

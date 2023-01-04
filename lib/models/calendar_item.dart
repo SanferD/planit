@@ -24,4 +24,13 @@ class CalendarItem {
     begin = beginInclusive ?? now;
     end = endInclusive ?? now.add(const Duration(hours: 1));
   }
+
+  CalendarItem.withDateTime(DateTime dateTime)
+      : title = "",
+        scheduleType = ScheduleType.relative {
+    final now = DateTime.now();
+    begin = DateTime(
+        dateTime.year, dateTime.month, dateTime.day, now.hour, now.minute);
+    end = begin.add(const Duration(hours: 1));
+  }
 }
