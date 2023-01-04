@@ -14,10 +14,13 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   late Future<List<CalendarItem>> calendarItemsFuture;
 
+  var _now = DateTime.now();
+
+  DateTime get now => _now;
+
   @override
   Widget build(BuildContext context) {
     final calendarItemBoundary = GetIt.I.get<CalendarItemBoundary>();
-    final now = DateTime.now().subtract(Duration(days: 1));
     final lowerInclusive = DateTime(now.year, now.month, now.day);
     final upperInclusive = DateTime(now.year, now.month, now.day, 23, 59, 59);
     calendarItemsFuture =
@@ -25,8 +28,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("PlanIt"),
+        title: Text(Utility.MMMEd(now)),
         actions: [
+          IconButton(
+            onPressed: () {
+              _now = DateTime.now();
+            },
+            icon: const Icon(Icons.calendar_today),
+          ),
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () async {
@@ -39,7 +48,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     lowerInclusive, upperInclusive);
               });
             },
-          )
+          ),
         ],
       ),
       body: FutureBuilder<List<CalendarItem>>(
@@ -48,39 +57,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
           if (!snapshot.hasData) return const Text("Loading...");
 
           final calendarItems = snapshot.data!;
-          if (calendarItems.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "No Calendar Items for ${Utility.yMMMEd(now)}.",
-                  ),
-                ],
-              ),
-            );
-          }
-
           calendarItems
               .sort((one, two) => one.begin.isBefore(two.begin) ? -1 : 1);
 
           const slotSize = 80;
           return SingleChildScrollView(
-            child: Stack(
-              children: [
-                getTimelineBorder(now, context, slotSize),
-                getCalendarItems(
-                  context,
-                  calendarItems,
-                  now,
-                  slotSize,
-                  calendarItemBoundary,
-                  lowerInclusive,
-                  upperInclusive,
-                ),
-              ],
-            ),
+            child: calendarItems.isEmpty
+                ? NoCalendarItems(now: now)
+                : Stack(
+                    children: [
+                      getTimelineBorder(now, context, slotSize),
+                      getCalendarItems(
+                        context,
+                        calendarItems,
+                        now,
+                        slotSize,
+                        calendarItemBoundary,
+                        lowerInclusive,
+                        upperInclusive,
+                      ),
+                    ],
+                  ),
           );
         },
       ),
@@ -175,6 +172,30 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class NoCalendarItems extends StatelessWidget {
+  const NoCalendarItems({
+    Key? key,
+    required this.now,
+  }) : super(key: key);
+
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            "No Calendar Items for ${Utility.yMMMEd(now)}.",
+          ),
+        ],
       ),
     );
   }
