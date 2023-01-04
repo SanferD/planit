@@ -3,7 +3,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:isar/isar.dart';
 import 'package:get_it/get_it.dart';
 
-import 'screens/calendar_screen.dart';
+import 'screens/calendar_swipable_screen.dart';
 import 'package:planit/models/calendar_item.dart';
 import 'package:planit/boundaries/calendar_item_boundary.dart';
 import 'package:planit/screens/calendar_item_screen.dart';
@@ -29,7 +29,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       routes: {
-        "/": (_) => CalendarScreen(),
+        "/": (_) => CalendarSwipableScreen(),
         CalendarItemScreen.routeName: (_) => CalendarItemScreen(),
       },
     );

@@ -7,6 +7,10 @@ import 'package:planit/screens/calendar_item_screen.dart';
 import 'package:planit/utility.dart';
 
 class CalendarScreen extends StatefulWidget {
+  final DateTime now;
+
+  const CalendarScreen({Key? key, required this.now}) : super(key: key);
+
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
@@ -14,12 +18,11 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   late Future<List<CalendarItem>> calendarItemsFuture;
 
-  var _now = DateTime.now();
-
-  DateTime get now => _now;
+  DateTime get now => widget.now;
 
   @override
   Widget build(BuildContext context) {
+    print(now);
     final calendarItemBoundary = GetIt.I.get<CalendarItemBoundary>();
     final lowerInclusive = DateTime(now.year, now.month, now.day);
     final upperInclusive = DateTime(now.year, now.month, now.day, 23, 59, 59);
@@ -32,7 +35,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         actions: [
           IconButton(
             onPressed: () {
-              _now = DateTime.now();
+              print("todo");
             },
             icon: const Icon(Icons.calendar_today),
           ),
@@ -92,7 +95,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       CalendarItemBoundary calendarItemBoundary,
       DateTime lowerInclusive,
       DateTime upperInclusive) {
-    final media_width = MediaQuery.of(context).size.width;
+    final mediaWidth = MediaQuery.of(context).size.width;
     var previousDateTime = DateTime(now.year, now.month, now.day);
     return Column(
       children: List.generate(
@@ -107,7 +110,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           previousDateTime = calendarItem.end;
           return Padding(
             padding: EdgeInsets.only(
-              left: media_width * .1,
+              left: mediaWidth * .1,
               top: (windowDateTimeInMinutes / 15.0) * slotSize,
             ),
             child: SizedBox(
@@ -137,7 +140,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Column getTimelineBorder(DateTime now, BuildContext context, int slotSize) {
-    final media_width = MediaQuery.of(context).size.width;
+    final mediaWidth = MediaQuery.of(context).size.width;
     return Column(
       mainAxisAlignment: MainAxisAlignment.start,
       children: List<Widget>.generate(
@@ -147,7 +150,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               (index / 4).floor(), ((index % 4) * 15).round());
           final isHour = (index % 4) == 0;
           return Container(
-            width: media_width,
+            width: mediaWidth,
             height: slotSize.toDouble(),
             decoration: BoxDecoration(
               border: Border(

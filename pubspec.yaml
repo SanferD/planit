@@ -41,6 +41,7 @@ dependencies:
   get_it: ^7.2.0
   isar: *isar_version
   isar_flutter_libs: *isar_version # contains Isar Core
+  infinity_page_view: ^1.0.0
   table_calendar: ^3.0.8
 
 
