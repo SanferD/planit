@@ -9,8 +9,13 @@ import 'package:planit/screens/calendar_item_screen_arguments.dart';
 
 class CalendarScreen extends StatefulWidget {
   final DateTime now;
+  final void Function() resetToToday;
 
-  const CalendarScreen({Key? key, required this.now}) : super(key: key);
+  const CalendarScreen({
+    Key? key,
+    required this.now,
+    required this.resetToToday,
+  }) : super(key: key);
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -23,7 +28,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print(now);
     final calendarItemBoundary = GetIt.I.get<CalendarItemBoundary>();
     final lowerInclusive = DateTime(now.year, now.month, now.day);
     final upperInclusive = DateTime(now.year, now.month, now.day, 23, 59, 59);
@@ -35,9 +39,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         title: Text(Utility.MMMEd(now)),
         actions: [
           IconButton(
-            onPressed: () {
-              print("todo");
-            },
+            onPressed: widget.resetToToday,
             icon: const Icon(Icons.calendar_today),
           ),
           IconButton(
