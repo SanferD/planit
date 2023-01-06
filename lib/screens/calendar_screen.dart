@@ -36,6 +36,49 @@ class _CalendarScreenState extends State<CalendarScreen> {
       appBar: AppBar(
         title: Text(Utility.MMMEd(now)),
         actions: [
+          FutureBuilder(
+              future: calendarItemBoundary.listCalendarItems(
+                  lowerInclusive, upperInclusive),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const Text("");
+
+                final calendarItems = snapshot.data!;
+                calendarItems
+                    .sort((one, two) => one.begin.isBefore(two.begin) ? -1 : 1);
+                if (calendarItems.isEmpty) return const Text("");
+                return ElevatedButton(
+                  onPressed: () async {
+                    final calendarItem = calendarItems[0];
+                    final timeOfDay =
+                        TimeOfDay.fromDateTime(calendarItem.begin);
+                    final newTimeOfDay = await showTimePicker(
+                        context: context, initialTime: timeOfDay);
+                    if (newTimeOfDay == null) return;
+                    if (timeOfDay == newTimeOfDay) return;
+                    final dateTime = DateTime(now.year, now.month, now.day,
+                        newTimeOfDay.hour, newTimeOfDay.minute);
+                    final differenceDurationMinutes =
+                        calendarItem.begin.isAfter(dateTime)
+                            ? -Utility.durationInMinutes(
+                                dateTime, calendarItem.begin)
+                            : Utility.durationInMinutes(
+                                calendarItem.begin, dateTime);
+                    for (var i = 0; i < calendarItems.length; i++) {
+                      final calendarItem = calendarItems[i];
+                      calendarItem.begin = calendarItem.begin
+                          .add(Duration(minutes: differenceDurationMinutes));
+                      calendarItem.end = calendarItem.end
+                          .add(Duration(minutes: differenceDurationMinutes));
+                      await calendarItemBoundary.addCalendarItem(calendarItem);
+                    }
+                    setState(() {
+                      calendarItemsFuture = calendarItemBoundary
+                          .listCalendarItems(lowerInclusive, upperInclusive);
+                    });
+                  },
+                  child: Text(Utility.formatTime(calendarItems[0].begin)),
+                );
+              }),
           IconButton(
             onPressed: widget.resetToToday,
             icon: const Icon(Icons.calendar_today),
