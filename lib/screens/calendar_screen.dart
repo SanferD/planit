@@ -11,11 +11,9 @@ class CalendarScreen extends StatefulWidget {
   final DateTime now;
   final void Function() resetToToday;
 
-  const CalendarScreen({
-    Key? key,
-    required this.now,
-    required this.resetToToday,
-  }) : super(key: key);
+  const CalendarScreen(
+      {Key? key, required this.now, required this.resetToToday})
+      : super(key: key);
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -115,32 +113,70 @@ class _CalendarScreenState extends State<CalendarScreen> {
           previousDateTime = calendarItem.end;
           return Padding(
             padding: EdgeInsets.only(
-              left: mediaWidth * .1,
               top: (windowDateTimeInMinutes / 15.0) * slotSize,
             ),
-            child: SizedBox(
-              height: numSlots * slotSize,
-              child: Card(
-                color: Colors.green[400],
-                child: CalendarScreenListItem(
-                  calendarItem: calendarItem,
-                  onTap: () async {
-                    final arguments = CalendarItemScreenArguments(
-                      calendarItem: calendarItem,
-                      now: now,
-                    );
-                    await Navigator.pushNamed(
-                      context,
-                      CalendarItemScreen.routeName,
-                      arguments: arguments,
-                    );
-                    setState(() {
-                      calendarItemsFuture = calendarItemBoundary
-                          .listCalendarItems(lowerInclusive, upperInclusive);
-                    });
-                  },
+            child: Row(
+              children: [
+                SizedBox(
+                  height: numSlots * slotSize,
+                  width: mediaWidth * .1,
+                  child: IconButton(
+                    onPressed: () async {
+                      final calendarItem2 = CalendarItem(
+                        title: "",
+                        beginInclusive: calendarItem.end,
+                        endInclusive: calendarItem.end.add(
+                          const Duration(minutes: 15),
+                        ),
+                        scheduleType: ScheduleType.relative,
+                      );
+                      await calendarItemBoundary.addCalendarItem(calendarItem2);
+                      setState(() {
+                        calendarItemsFuture = calendarItemBoundary
+                            .listCalendarItems(lowerInclusive, upperInclusive);
+                      });
+                    },
+                    icon: const Icon(Icons.add_circle_rounded),
+                    iconSize: 26,
+                  ),
                 ),
-              ),
+                Expanded(
+                  child: SizedBox(
+                    height: numSlots * slotSize,
+                    child: Card(
+                      color: Colors.green[400],
+                      child: CalendarScreenListItem(
+                        calendarItem: calendarItem,
+                        updateItem: (updatedCalendarItem) async {
+                          await calendarItemBoundary
+                              .addCalendarItem(updatedCalendarItem);
+                          setState(() {
+                            calendarItemsFuture =
+                                calendarItemBoundary.listCalendarItems(
+                                    lowerInclusive, upperInclusive);
+                          });
+                        },
+                        onTap: () async {
+                          final arguments = CalendarItemScreenArguments(
+                            calendarItem: calendarItem,
+                            now: now,
+                          );
+                          await Navigator.pushNamed(
+                            context,
+                            CalendarItemScreen.routeName,
+                            arguments: arguments,
+                          );
+                          setState(() {
+                            calendarItemsFuture =
+                                calendarItemBoundary.listCalendarItems(
+                                    lowerInclusive, upperInclusive);
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         },
@@ -216,9 +252,27 @@ class NoCalendarItems extends StatelessWidget {
 class CalendarScreenListItem extends StatelessWidget {
   final CalendarItem calendarItem;
   final void Function()? onTap;
+  final void Function(CalendarItem) updateItem;
+  final TextEditingController durationController;
+  final TextEditingController titleController;
 
-  const CalendarScreenListItem(
-      {Key? key, required this.calendarItem, this.onTap});
+  CalendarScreenListItem(
+      {Key? key,
+      required this.calendarItem,
+      this.onTap,
+      required this.updateItem})
+      : durationController = TextEditingController.fromValue(
+          TextEditingValue(
+            text:
+                Utility.durationInMinutes(calendarItem.begin, calendarItem.end)
+                    .toString(),
+          ),
+        ),
+        titleController = TextEditingController.fromValue(
+          TextEditingValue(
+            text: calendarItem.title,
+          ),
+        );
 
   @override
   Widget build(BuildContext context) {
@@ -228,16 +282,41 @@ class CalendarScreenListItem extends StatelessWidget {
         Utility.durationInMinutes(calendarItem.begin, calendarItem.end);
     return ListTile(
       leading: CircleAvatar(
-        child: Text(
-          calendarDurationMinutes.toString(),
-          style: const TextStyle(fontSize: 18),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: TextField(
+            keyboardType: TextInputType.number,
+            controller: durationController,
+            style: const TextStyle(fontSize: 18),
+            onSubmitted: (value) {
+              final newDurationMinutes = int.parse(durationController.text);
+              if (newDurationMinutes < 0 || newDurationMinutes > 240) {
+                print("$newDurationMinutes is too large");
+                return;
+              }
+              calendarItem.end = calendarItem.begin.add(Duration(
+                minutes: newDurationMinutes,
+              ));
+              updateItem(calendarItem);
+            },
+          ),
         ),
       ),
       title: Padding(
         padding: const EdgeInsets.only(left: 2.0),
-        child: Text(
-          calendarItem.title,
-          style: const TextStyle(fontSize: 16),
+        child: TextField(
+          decoration: InputDecoration(contentPadding: EdgeInsets.all(0.0)),
+          controller: titleController,
+          style: const TextStyle(fontSize: 18),
+          onSubmitted: (value) {
+            final newTitle = titleController.text;
+            if (newTitle.length > 100) {
+              print("$newTitle is too large");
+              return;
+            }
+            calendarItem.title = newTitle;
+            updateItem(calendarItem);
+          },
         ),
       ),
       subtitle: Row(

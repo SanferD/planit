@@ -28,9 +28,7 @@ class CalendarItem {
   CalendarItem.withDateTime(DateTime dateTime)
       : title = "",
         scheduleType = ScheduleType.relative {
-    final now = DateTime.now();
-    begin = DateTime(
-        dateTime.year, dateTime.month, dateTime.day, now.hour, now.minute);
+    begin = dateTime;
     end = begin.add(const Duration(hours: 1));
   }
 }
