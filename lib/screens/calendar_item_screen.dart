@@ -7,6 +7,7 @@ import 'package:planit/models/schedule_type.dart';
 import 'package:planit/widgets/radio_button_form_field.dart';
 import 'package:get_it/get_it.dart';
 import 'package:planit/screens/calendar_item_screen_arguments.dart';
+import 'package:planit/utility.dart';
 
 class CalendarItemScreen extends StatefulWidget {
   static const routeName = "/calendar-item";
@@ -25,6 +26,7 @@ class _CalendarItemScreenState extends State<CalendarItemScreen> {
     final calendarItem = isAdd
         ? CalendarItem.withDateTime(arguments.now)
         : arguments.calendarItem!;
+    final calendarItems = arguments.calendarItems;
 
     // convert schedule type enum to list of {"value": <>, "display":}
     // which is used by radio button form field to present radio buttons
@@ -51,13 +53,17 @@ class _CalendarItemScreenState extends State<CalendarItemScreen> {
       appBar: AppBar(
         title: Text("${isAdd ? 'Add' : 'Edit'} Calendar Item"),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline_outlined),
-            onPressed: () async {
-              await calendarItemBoundary.removeCalendarItem(calendarItem);
-              Navigator.pop(context);
-            },
-          ),
+          if (!isAdd)
+            IconButton(
+              icon: const Icon(Icons.delete_outline_outlined),
+              onPressed: () async {
+                Utility.reorderCalendarItems(
+                    calendarItems!, calendarItem.begin);
+                await calendarItemBoundary.addCalendarItems(calendarItems);
+                await calendarItemBoundary.removeCalendarItem(calendarItem);
+                Navigator.pop(context);
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.save_sharp),
             onPressed: () async {

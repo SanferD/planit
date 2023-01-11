@@ -46,31 +46,29 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 calendarItems
                     .sort((one, two) => one.begin.isBefore(two.begin) ? -1 : 1);
                 if (calendarItems.isEmpty) return const Text("");
+                CalendarItem? firstRelativeCalendarItem;
+                for (var i = 0; i < calendarItems.length; i++) {
+                  firstRelativeCalendarItem = calendarItems[i];
+                  if (firstRelativeCalendarItem.scheduleType ==
+                      ScheduleType.relative) break;
+                }
+                if (firstRelativeCalendarItem == null) return const Text("");
                 return ElevatedButton(
                   onPressed: () async {
-                    final calendarItem = calendarItems[0];
-                    final timeOfDay =
-                        TimeOfDay.fromDateTime(calendarItem.begin);
+                    final timeOfDayOfFirstRelativeCalendarItem =
+                        TimeOfDay.fromDateTime(
+                            firstRelativeCalendarItem!.begin);
                     final newTimeOfDay = await showTimePicker(
-                        context: context, initialTime: timeOfDay);
+                        context: context,
+                        initialTime: timeOfDayOfFirstRelativeCalendarItem);
                     if (newTimeOfDay == null) return;
-                    if (timeOfDay == newTimeOfDay) return;
-                    final dateTime = DateTime(now.year, now.month, now.day,
+                    if (timeOfDayOfFirstRelativeCalendarItem == newTimeOfDay)
+                      return;
+
+                    final newBegin = DateTime(now.year, now.month, now.day,
                         newTimeOfDay.hour, newTimeOfDay.minute);
-                    final differenceDurationMinutes =
-                        calendarItem.begin.isAfter(dateTime)
-                            ? -Utility.durationInMinutes(
-                                dateTime, calendarItem.begin)
-                            : Utility.durationInMinutes(
-                                calendarItem.begin, dateTime);
-                    for (var i = 0; i < calendarItems.length; i++) {
-                      final calendarItem = calendarItems[i];
-                      calendarItem.begin = calendarItem.begin
-                          .add(Duration(minutes: differenceDurationMinutes));
-                      calendarItem.end = calendarItem.end
-                          .add(Duration(minutes: differenceDurationMinutes));
-                      await calendarItemBoundary.addCalendarItem(calendarItem);
-                    }
+                    Utility.reorderCalendarItems(calendarItems, newBegin);
+                    await calendarItemBoundary.addCalendarItems(calendarItems);
                     setState(() {
                       calendarItemsFuture = calendarItemBoundary
                           .listCalendarItems(lowerInclusive, upperInclusive);
@@ -112,7 +110,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
           const slotSize = 80;
           return SingleChildScrollView(
             child: calendarItems.isEmpty
-                ? NoCalendarItems(now: now)
+                ? NoCalendarItems(
+                    now: now,
+                    updateLitsOfItems: () {
+                      setState(() {
+                        calendarItemsFuture = calendarItemBoundary
+                            .listCalendarItems(lowerInclusive, upperInclusive);
+                      });
+                    },
+                  )
                 : Stack(
                     children: [
                       getTimelineBorder(now, context, slotSize),
@@ -173,7 +179,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         ),
                         scheduleType: ScheduleType.relative,
                       );
-                      await calendarItemBoundary.addCalendarItem(calendarItem2);
+                      if (index + 1 >= calendarItems.length) {
+                        await calendarItemBoundary
+                            .addCalendarItem(calendarItem2);
+                      } else {
+                        calendarItems.insert(index + 1, calendarItem2);
+                        Utility.reorderCalendarItems(
+                            calendarItems.sublist(index + 2),
+                            calendarItem2.end);
+                        await calendarItemBoundary
+                            .addCalendarItems(calendarItems.sublist(index + 1));
+                      }
                       setState(() {
                         calendarItemsFuture = calendarItemBoundary
                             .listCalendarItems(lowerInclusive, upperInclusive);
@@ -191,8 +207,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       child: CalendarScreenListItem(
                         calendarItem: calendarItem,
                         updateItem: (updatedCalendarItem) async {
-                          await calendarItemBoundary
-                              .addCalendarItem(updatedCalendarItem);
+                          final index =
+                              calendarItems.indexOf(updatedCalendarItem);
+                          assert(index != -1,
+                              "$updatedCalendarItem, $calendarItems");
+                          if (true) {
+                            Utility.reorderCalendarItems(
+                                calendarItems.sublist(index + 1),
+                                updatedCalendarItem.end);
+                            await calendarItemBoundary
+                                .addCalendarItems(calendarItems.sublist(index));
+                          } else {
+                            await calendarItemBoundary
+                                .addCalendarItem(updatedCalendarItem);
+                          }
                           setState(() {
                             calendarItemsFuture =
                                 calendarItemBoundary.listCalendarItems(
@@ -203,6 +231,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           final arguments = CalendarItemScreenArguments(
                             calendarItem: calendarItem,
                             now: now,
+                            calendarItems:
+                                List.from(calendarItems.sublist(index + 1)),
                           );
                           await Navigator.pushNamed(
                             context,
@@ -272,21 +302,35 @@ class NoCalendarItems extends StatelessWidget {
   const NoCalendarItems({
     Key? key,
     required this.now,
+    required this.updateLitsOfItems,
   }) : super(key: key);
 
   final DateTime now;
+  final void Function() updateLitsOfItems;
 
   @override
   Widget build(BuildContext context) {
+    final calendarItemBoundary = GetIt.I.get<CalendarItemBoundary>();
     return Padding(
       padding: const EdgeInsets.all(20.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            "No Calendar Items for ${Utility.yMMMEd(now)}.",
-          ),
-        ],
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              "No Calendar Items for ${Utility.yMMMEd(now)}.",
+            ),
+            IconButton(
+              icon: const Icon(Icons.add_circle_rounded),
+              iconSize: 50,
+              onPressed: () async {
+                final calendarItem = CalendarItem.withDateTime(this.now);
+                await calendarItemBoundary.addCalendarItem(calendarItem);
+                updateLitsOfItems();
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -323,34 +367,46 @@ class CalendarScreenListItem extends StatelessWidget {
     const trailingTextStyle = TextStyle(fontSize: 12);
     final calendarDurationMinutes =
         Utility.durationInMinutes(calendarItem.begin, calendarItem.end);
+    final isShort = calendarDurationMinutes < 15;
+    durationController.selection = TextSelection.fromPosition(
+        TextPosition(offset: durationController.text.length));
     return ListTile(
+      visualDensity: isShort ? const VisualDensity(vertical: -2.1) : null,
+      minVerticalPadding: -20,
       leading: CircleAvatar(
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: TextField(
-            keyboardType: TextInputType.number,
-            controller: durationController,
-            style: const TextStyle(fontSize: 18),
-            onSubmitted: (value) {
-              final newDurationMinutes = int.parse(durationController.text);
-              if (newDurationMinutes < 0 || newDurationMinutes > 240) {
-                print("$newDurationMinutes is too large");
-                return;
-              }
-              calendarItem.end = calendarItem.begin.add(Duration(
-                minutes: newDurationMinutes,
-              ));
-              updateItem(calendarItem);
-            },
+        radius: isShort ? 17 : 20,
+        child: TextField(
+          decoration: InputDecoration(
+            contentPadding: isShort
+                ? const EdgeInsets.only(left: 7, bottom: 15)
+                : const EdgeInsets.only(left: 10, bottom: 10),
+            border: InputBorder.none,
           ),
+          keyboardType: TextInputType.number,
+          controller: durationController,
+          style: TextStyle(fontSize: isShort ? 16 : 18),
+          onSubmitted: (value) {
+            final newDurationMinutes = int.parse(durationController.text);
+            if (newDurationMinutes < 0 || newDurationMinutes > 60 * 24) {
+              print("$newDurationMinutes is too large");
+              return;
+            }
+            calendarItem.end = calendarItem.begin.add(Duration(
+              minutes: newDurationMinutes,
+            ));
+            updateItem(calendarItem);
+          },
         ),
       ),
       title: Padding(
-        padding: const EdgeInsets.only(left: 2.0),
+        padding: EdgeInsets.only(left: 2.0, top: isShort ? 4.5 : 0.0),
         child: TextField(
-          decoration: InputDecoration(contentPadding: EdgeInsets.all(0.0)),
+          decoration: InputDecoration(
+            contentPadding: EdgeInsets.only(top: isShort ? -13.0 : 0.0),
+            border: InputBorder.none,
+          ),
           controller: titleController,
-          style: const TextStyle(fontSize: 18),
+          style: TextStyle(fontSize: isShort ? 16 : 18),
           onSubmitted: (value) {
             final newTitle = titleController.text;
             if (newTitle.length > 100) {
@@ -362,23 +418,29 @@ class CalendarScreenListItem extends StatelessWidget {
           },
         ),
       ),
-      subtitle: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Text(
-            Utility.formatTime(calendarItem.begin),
-            style: subtitleStyle,
-          ),
-          const Text(" - ", style: subtitleStyle),
-          Text(
-            Utility.formatTime(calendarItem.end),
-            style: subtitleStyle,
-          ),
-        ],
-      ),
+      subtitle: (calendarDurationMinutes >= 15)
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Text(
+                  Utility.formatTime(calendarItem.begin),
+                  style: subtitleStyle,
+                ),
+                const Text(" - ", style: subtitleStyle),
+                Text(
+                  Utility.formatTime(calendarItem.end),
+                  style: subtitleStyle,
+                ),
+              ],
+            )
+          : null,
       trailing: Chip(
-        label:
-            Text(calendarItem.scheduleType.display, style: trailingTextStyle),
+        visualDensity: const VisualDensity(vertical: -4),
+        padding: const EdgeInsets.all(0.0),
+        label: Text(
+          calendarItem.scheduleType.display,
+          style: trailingTextStyle,
+        ),
         avatar: CircleAvatar(
           child: Text(
             calendarItem.scheduleType.display.characters.first.toUpperCase(),
@@ -386,7 +448,7 @@ class CalendarScreenListItem extends StatelessWidget {
           ),
         ),
       ),
-      onTap: onTap,
+      onLongPress: onTap,
     );
   }
 }

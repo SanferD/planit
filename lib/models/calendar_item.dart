@@ -31,4 +31,7 @@ class CalendarItem {
     begin = dateTime;
     end = begin.add(const Duration(hours: 1));
   }
+
+  @override
+  operator ==(covariant CalendarItem other) => other.id == id;
 }

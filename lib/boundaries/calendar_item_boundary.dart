@@ -12,6 +12,14 @@ class CalendarItemBoundary {
     });
   }
 
+  Future<void> addCalendarItems(final List<CalendarItem> calendarItems) async {
+    await isar.writeTxn(() async {
+      for (var i = 0; i < calendarItems.length; i++) {
+        isar.calendarItems.put(calendarItems[i]);
+      }
+    });
+  }
+
   Future<void> removeCalendarItem(final CalendarItem calendarItem) async {
     if (calendarItem.id == null) return;
     await isar.writeTxn(() async {
