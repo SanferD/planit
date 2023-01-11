@@ -32,6 +32,13 @@ class CalendarItem {
     end = begin.add(const Duration(hours: 1));
   }
 
+  CalendarItem.clone(CalendarItem otherItem)
+      : id = otherItem.id,
+        title = otherItem.title,
+        begin = otherItem.begin,
+        end = otherItem.end,
+        scheduleType = otherItem.scheduleType;
+
   @override
   operator ==(covariant CalendarItem other) => other.id == id;
 }

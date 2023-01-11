@@ -131,10 +131,36 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         lowerInclusive,
                         upperInclusive,
                       ),
+                      getNowHorizontalTimeLine(context, slotSize),
                     ],
                   ),
           );
         },
+      ),
+    );
+  }
+
+  Widget getNowHorizontalTimeLine(BuildContext context, int slotSize) {
+    final mediaWidth = MediaQuery.of(context).size.width;
+    final now = DateTime.now();
+    final minutes =
+        (now.difference(DateTime(now.year, now.month, now.day))).inMinutes;
+    final numberOfSlots = (minutes / 15).floor();
+    final offset = minutes % 15;
+    final height = numberOfSlots * slotSize + (offset / 15) * slotSize;
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Container(
+        width: mediaWidth,
+        height: height,
+        decoration: const BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              width: 1.75,
+              color: Colors.red,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -211,16 +237,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               calendarItems.indexOf(updatedCalendarItem);
                           assert(index != -1,
                               "$updatedCalendarItem, $calendarItems");
-                          if (true) {
-                            Utility.reorderCalendarItems(
-                                calendarItems.sublist(index + 1),
-                                updatedCalendarItem.end);
-                            await calendarItemBoundary
-                                .addCalendarItems(calendarItems.sublist(index));
-                          } else {
-                            await calendarItemBoundary
-                                .addCalendarItem(updatedCalendarItem);
-                          }
+                          Utility.reorderCalendarItems(
+                              calendarItems.sublist(index + 1),
+                              updatedCalendarItem.end);
+                          await calendarItemBoundary
+                              .addCalendarItems(calendarItems.sublist(index));
                           setState(() {
                             calendarItemsFuture =
                                 calendarItemBoundary.listCalendarItems(
@@ -231,8 +252,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           final arguments = CalendarItemScreenArguments(
                             calendarItem: calendarItem,
                             now: now,
-                            calendarItems:
-                                List.from(calendarItems.sublist(index + 1)),
+                            calendarItems: calendarItems
+                                .sublist(index + 1)
+                                .map((item) => CalendarItem.clone(item))
+                                .toList(),
                           );
                           await Navigator.pushNamed(
                             context,

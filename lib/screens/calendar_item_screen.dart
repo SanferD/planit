@@ -57,23 +57,25 @@ class _CalendarItemScreenState extends State<CalendarItemScreen> {
             IconButton(
               icon: const Icon(Icons.delete_outline_outlined),
               onPressed: () async {
+                final navigator = Navigator.of(context);
                 Utility.reorderCalendarItems(
                     calendarItems!, calendarItem.begin);
                 await calendarItemBoundary.addCalendarItems(calendarItems);
                 await calendarItemBoundary.removeCalendarItem(calendarItem);
-                Navigator.pop(context);
+                navigator.pop();
               },
             ),
           IconButton(
             icon: const Icon(Icons.save_sharp),
             onPressed: () async {
+              final navigator = Navigator.of(context);
               final currentState = calendarItemForm.formKey.currentState;
               if (currentState == null) return;
               if (currentState.validate()) {
                 currentState.save(); // should populate calendarItem
 
                 await calendarItemBoundary.addCalendarItem(calendarItem);
-                Navigator.pop(context); // save success, go back
+                navigator.pop(); // save success, go back
               }
             },
           ),
