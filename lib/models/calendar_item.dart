@@ -14,6 +14,12 @@ class CalendarItem {
   @enumerated
   ScheduleType scheduleType;
 
+  int get durationMinutes => end.difference(begin).inMinutes;
+  set durationMinutes(int minutes) {
+    if (durationMinutes == minutes) return;
+    end = begin.add(Duration(minutes: minutes));
+  }
+
   CalendarItem({
     this.title = "",
     DateTime? beginInclusive,

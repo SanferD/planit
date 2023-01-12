@@ -200,9 +200,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         calendarItems.length,
         (index) {
           final calendarItem = calendarItems[index];
-          final calendarDurationMinutes =
-              Utility.durationInMinutes(calendarItem.begin, calendarItem.end);
-          final numSlots = calendarDurationMinutes / 15.0;
+          final numSlots = calendarItem.durationMinutes / 15.0;
           final windowDateTimeInMinutes =
               Utility.durationInMinutes(previousDateTime, calendarItem.begin);
           previousDateTime = calendarItem.end;
@@ -367,7 +365,7 @@ class NoCalendarItems extends StatelessWidget {
               icon: const Icon(Icons.add_circle_rounded),
               iconSize: 50,
               onPressed: () async {
-                final calendarItem = CalendarItem.withDateTime(this.now);
+                final calendarItem = CalendarItem.withDateTime(now);
                 await calendarItemBoundary.addCalendarItem(calendarItem);
                 updateLitsOfItems();
               },
@@ -393,9 +391,7 @@ class CalendarScreenListItem extends StatelessWidget {
       required this.updateItem})
       : durationController = TextEditingController.fromValue(
           TextEditingValue(
-            text:
-                Utility.durationInMinutes(calendarItem.begin, calendarItem.end)
-                    .toString(),
+            text: calendarItem.durationMinutes.toString(),
           ),
         ),
         titleController = TextEditingController.fromValue(
@@ -408,9 +404,7 @@ class CalendarScreenListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     const subtitleStyle = TextStyle(fontSize: 12);
     const trailingTextStyle = TextStyle(fontSize: 12);
-    final calendarDurationMinutes =
-        Utility.durationInMinutes(calendarItem.begin, calendarItem.end);
-    final isShort = calendarDurationMinutes < 15;
+    final isShort = calendarItem.durationMinutes < 15;
     durationController.selection = TextSelection.fromPosition(
         TextPosition(offset: durationController.text.length));
     return ListTile(
@@ -447,7 +441,7 @@ class CalendarScreenListItem extends StatelessWidget {
           ),
         ),
       ),
-      subtitle: (calendarDurationMinutes >= 15)
+      subtitle: (calendarItem.durationMinutes >= 15)
           ? Row(
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
@@ -499,11 +493,8 @@ class CalendarScreenListItem extends StatelessWidget {
       print("$newDurationMinutes is too large");
       return;
     }
-    final newEnd = calendarItem.begin.add(Duration(
-      minutes: newDurationMinutes,
-    ));
-    if (newEnd.compareTo(calendarItem.end) == 0) return;
-    calendarItem.end = newEnd;
+    if (newDurationMinutes == calendarItem.durationMinutes) return;
+    calendarItem.durationMinutes = newDurationMinutes;
     updateItem(calendarItem);
   }
 }
