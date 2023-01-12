@@ -387,7 +387,7 @@ class CalendarScreenListItem extends StatelessWidget {
   final TextEditingController titleController;
 
   CalendarScreenListItem(
-      {Key? key,
+      {super.key,
       required this.calendarItem,
       this.onTap,
       required this.updateItem})
@@ -418,47 +418,33 @@ class CalendarScreenListItem extends StatelessWidget {
       minVerticalPadding: -20,
       leading: CircleAvatar(
         radius: isShort ? 17 : 20,
-        child: TextField(
-          decoration: InputDecoration(
-            contentPadding: isShort
-                ? const EdgeInsets.only(left: 7, bottom: 15)
-                : const EdgeInsets.only(left: 10, bottom: 10),
-            border: InputBorder.none,
+        child: Focus(
+          onFocusChange: onSubmittedDuration,
+          child: TextField(
+            decoration: InputDecoration(
+              contentPadding: isShort
+                  ? const EdgeInsets.only(left: 7, bottom: 15)
+                  : const EdgeInsets.only(left: 10, bottom: 10),
+              border: InputBorder.none,
+            ),
+            keyboardType: TextInputType.number,
+            controller: durationController,
+            style: TextStyle(fontSize: isShort ? 16 : 18),
           ),
-          keyboardType: TextInputType.number,
-          controller: durationController,
-          style: TextStyle(fontSize: isShort ? 16 : 18),
-          onSubmitted: (value) {
-            final newDurationMinutes = int.parse(durationController.text);
-            if (newDurationMinutes < 0 || newDurationMinutes > 60 * 24) {
-              print("$newDurationMinutes is too large");
-              return;
-            }
-            calendarItem.end = calendarItem.begin.add(Duration(
-              minutes: newDurationMinutes,
-            ));
-            updateItem(calendarItem);
-          },
         ),
       ),
       title: Padding(
         padding: EdgeInsets.only(left: 2.0, top: isShort ? 4.5 : 0.0),
-        child: TextField(
-          decoration: InputDecoration(
-            contentPadding: EdgeInsets.only(top: isShort ? -13.0 : 0.0),
-            border: InputBorder.none,
+        child: Focus(
+          onFocusChange: onSubmittedTitle,
+          child: TextField(
+            decoration: InputDecoration(
+              contentPadding: EdgeInsets.only(top: isShort ? -13.0 : 0.0),
+              border: InputBorder.none,
+            ),
+            controller: titleController,
+            style: TextStyle(fontSize: isShort ? 16 : 18),
           ),
-          controller: titleController,
-          style: TextStyle(fontSize: isShort ? 16 : 18),
-          onSubmitted: (value) {
-            final newTitle = titleController.text;
-            if (newTitle.length > 100) {
-              print("$newTitle is too large");
-              return;
-            }
-            calendarItem.title = newTitle;
-            updateItem(calendarItem);
-          },
         ),
       ),
       subtitle: (calendarDurationMinutes >= 15)
@@ -493,5 +479,31 @@ class CalendarScreenListItem extends StatelessWidget {
       ),
       onLongPress: onTap,
     );
+  }
+
+  void onSubmittedTitle(value) {
+    final newTitle = titleController.text;
+    if (newTitle.length > 100) {
+      print("$newTitle is too large");
+      return;
+    }
+    if (calendarItem.title == newTitle) return;
+    calendarItem.title = newTitle;
+    updateItem(calendarItem);
+  }
+
+  void onSubmittedDuration(_) {
+    final newDurationMinutes = int.tryParse(durationController.text);
+    if (newDurationMinutes == null) return;
+    if (newDurationMinutes < 0 || newDurationMinutes > 60 * 24) {
+      print("$newDurationMinutes is too large");
+      return;
+    }
+    final newEnd = calendarItem.begin.add(Duration(
+      minutes: newDurationMinutes,
+    ));
+    if (newEnd.compareTo(calendarItem.end) == 0) return;
+    calendarItem.end = newEnd;
+    updateItem(calendarItem);
   }
 }
