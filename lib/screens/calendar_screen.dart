@@ -6,14 +6,16 @@ import 'package:planit/models/schedule_type.dart';
 import 'package:planit/screens/calendar_item_screen.dart';
 import 'package:planit/utility.dart';
 import 'package:planit/screens/calendar_item_screen_arguments.dart';
+import 'dart:async';
 
 class CalendarScreen extends StatefulWidget {
   final DateTime now;
   final void Function() resetToToday;
+  final scrollController;
 
-  const CalendarScreen(
-      {Key? key, required this.now, required this.resetToToday})
-      : super(key: key);
+  CalendarScreen({Key? key, required this.now, required this.resetToToday})
+      : scrollController = ScrollController(),
+        super(key: key);
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -22,10 +24,28 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   late Future<List<CalendarItem>> calendarItemsFuture;
 
+  static const slotSize = 80;
   DateTime get now => widget.now;
+  Timer? timer;
+
+  void initTimer() {
+    if (timer != null && timer!.isActive) return;
+
+    timer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      //job
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    initTimer();
     final calendarItemBoundary = GetIt.I.get<CalendarItemBoundary>();
     final lowerInclusive = DateTime(now.year, now.month, now.day);
     final upperInclusive = DateTime(now.year, now.month, now.day, 23, 59, 59);
@@ -78,7 +98,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 );
               }),
           IconButton(
-            onPressed: widget.resetToToday,
+            onPressed: () {
+              widget.resetToToday();
+              final height = MediaQuery.of(context).size.height;
+              widget.scrollController
+                  .jumpTo(currentTimeOffset + 40 - height / 2);
+            },
             icon: const Icon(Icons.calendar_today),
           ),
           IconButton(
@@ -107,8 +132,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
           calendarItems
               .sort((one, two) => one.begin.isBefore(two.begin) ? -1 : 1);
 
-          const slotSize = 80;
           return SingleChildScrollView(
+            controller: widget.scrollController,
             child: calendarItems.isEmpty
                 ? NoCalendarItems(
                     now: now,
@@ -142,17 +167,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   Widget getNowHorizontalTimeLine(BuildContext context, int slotSize) {
     final mediaWidth = MediaQuery.of(context).size.width;
-    final now = DateTime.now();
-    final minutes =
-        (now.difference(DateTime(now.year, now.month, now.day))).inMinutes;
-    final numberOfSlots = (minutes / 15).floor();
-    final offset = minutes % 15;
-    final height = numberOfSlots * slotSize + (offset / 15) * slotSize;
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Container(
         width: mediaWidth,
-        height: height,
+        height: currentTimeOffset,
         decoration: const BoxDecoration(
           border: Border(
             bottom: BorderSide(
@@ -163,6 +182,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
       ),
     );
+  }
+
+  double get currentTimeOffset {
+    final now = DateTime.now();
+    final minutes =
+        (now.difference(DateTime(now.year, now.month, now.day))).inMinutes;
+    final numberOfSlots = (minutes / 15).floor();
+    final offset = minutes % 15;
+    final height = numberOfSlots * slotSize + (offset / 15) * slotSize;
+    return height;
   }
 
   Column getCalendarItems(
