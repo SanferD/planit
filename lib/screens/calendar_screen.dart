@@ -106,6 +106,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             },
             icon: const Icon(Icons.calendar_today),
           ),
+          /* DISABLED for now since only relative items are implemented
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () async {
@@ -121,6 +122,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               });
             },
           ),
+          */
         ],
       ),
       body: FutureBuilder<List<CalendarItem>>(
