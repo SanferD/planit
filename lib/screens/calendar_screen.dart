@@ -166,20 +166,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Widget getNowHorizontalTimeLine(BuildContext context, int slotSize) {
-    final mediaWidth = MediaQuery.of(context).size.width;
     return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Container(
-        width: mediaWidth,
-        height: currentTimeOffset,
-        decoration: const BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              width: 1.75,
-              color: Colors.red,
-            ),
-          ),
-        ),
+      padding: EdgeInsets.only(top: currentTimeOffset - 6.5),
+      child: const Divider(
+        thickness: 2,
+        color: Colors.red,
       ),
     );
   }
