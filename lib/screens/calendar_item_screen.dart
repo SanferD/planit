@@ -120,51 +120,21 @@ class CalendarItemForm extends StatelessWidget {
                 },
               ),
               verticalSpacing,
-              DateTimePickerFormField(
-                initialValue: calendarItem.begin,
-                label: const Text("Begin:"),
-                validator: (newBeginValue) {
-                  if (newBeginValue == null) return null;
-                  if (newBeginValue.isAfter(calendarItem.end)) {
-                    return "Begin cannot be after End";
-                  }
+              MaxLengthTextFormField(
+                labelText: "Duration Minutes",
+                maxLength: 10,
+                keyboardType: TextInputType.number,
+                initialValue: calendarItem.durationMinutes.toString(),
+                validatorExtra: (value) {
+                  final durationMinutes = int.tryParse(value ?? "");
+                  if (durationMinutes == null) return "Cannot parse $value";
                   return null;
                 },
-                onChanged: (newBeginValue) {
-                  if (newBeginValue != null) calendarItem.begin = newBeginValue;
-                },
-                onSaved: (newBeginValue) {
-                  if (newBeginValue != null) calendarItem.begin = newBeginValue;
-                },
-              ),
-              verticalSpacing,
-              DateTimePickerFormField(
-                initialValue: calendarItem.end,
-                label: const Text("End:   "),
-                validator: (newEndValue) {
-                  if (newEndValue == null) return null;
-                  if (newEndValue.isBefore(calendarItem.begin)) {
-                    return "End cannot be before Begin";
-                  }
-                  return null;
-                },
-                onChanged: (newEndValue) {
-                  if (newEndValue != null) calendarItem.end = newEndValue;
-                },
-                onSaved: (newEndValue) {
-                  if (newEndValue != null) calendarItem.end = newEndValue;
-                },
-              ),
-              verticalSpacing,
-              RadioButtonFormField<ScheduleType>(
-                initialValue: ScheduleType.relative,
-                options: scheduleTypeRadioButtonOptions,
-                optionsKeyForDisplay: "display",
-                optionsKeyForValue: "value",
-                onChanged: (scheduleType) {
-                  if (scheduleType != null) {
-                    calendarItem.scheduleType = scheduleType;
-                  }
+                onSaved: (newDuration) {
+                  if (newDuration == null) return;
+                  final durationMinutes = int.tryParse(newDuration);
+                  if (durationMinutes == null) return;
+                  calendarItem.durationMinutes = durationMinutes;
                 },
               ),
             ],
