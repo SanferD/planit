@@ -11,7 +11,10 @@ import 'dart:async';
 class CalendarScreen extends StatefulWidget {
   final DateTime now;
   final void Function() resetToToday;
-  final scrollController;
+  void Function()? jumpToNow; // set/updated once calendarItems are loaded
+  final ScrollController scrollController;
+
+  static const slotSize = 80;
 
   CalendarScreen({Key? key, required this.now, required this.resetToToday})
       : scrollController = ScrollController(),
@@ -24,7 +27,6 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   late Future<List<CalendarItem>> calendarItemsFuture;
 
-  static const slotSize = 80;
   DateTime get now => widget.now;
   Timer? timer;
 
@@ -35,6 +37,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
       //job
       setState(() {});
     });
+  }
+
+  double get currentTimeOffset {
+    final now = DateTime.now();
+    final minutes =
+        (now.difference(DateTime(now.year, now.month, now.day))).inMinutes;
+    final numberOfSlots = (minutes / 15).floor();
+    final offset = minutes % 15;
+    final height = numberOfSlots * CalendarScreen.slotSize +
+        (offset / 15) * CalendarScreen.slotSize;
+    return height;
   }
 
   @override
@@ -100,9 +113,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
           IconButton(
             onPressed: () {
               widget.resetToToday();
-              final height = MediaQuery.of(context).size.height;
-              widget.scrollController
-                  .jumpTo(currentTimeOffset + 40 - height / 2);
+              if (widget.jumpToNow == null) return;
+              widget.jumpToNow!();
             },
             icon: const Icon(Icons.calendar_today),
           ),
@@ -134,6 +146,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
           calendarItems
               .sort((one, two) => one.begin.isBefore(two.begin) ? -1 : 1);
 
+          widget.jumpToNow = () {
+            final height = MediaQuery.of(context).size.height;
+            widget.scrollController.jumpTo(currentTimeOffset + 40 - height / 2);
+          };
+
           return SingleChildScrollView(
             controller: widget.scrollController,
             child: calendarItems.isEmpty
@@ -148,17 +165,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   )
                 : Stack(
                     children: [
-                      getTimelineBorder(now, context, slotSize),
+                      getTimelineBorder(now, context, CalendarScreen.slotSize),
                       getCalendarItems(
                         context,
                         calendarItems,
                         now,
-                        slotSize,
+                        CalendarScreen.slotSize,
                         calendarItemBoundary,
                         lowerInclusive,
                         upperInclusive,
                       ),
-                      getNowHorizontalTimeLine(context, slotSize),
+                      getNowHorizontalTimeLine(
+                          context, CalendarScreen.slotSize),
                     ],
                   ),
           );
@@ -175,16 +193,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
         color: Colors.red,
       ),
     );
-  }
-
-  double get currentTimeOffset {
-    final now = DateTime.now();
-    final minutes =
-        (now.difference(DateTime(now.year, now.month, now.day))).inMinutes;
-    final numberOfSlots = (minutes / 15).floor();
-    final offset = minutes % 15;
-    final height = numberOfSlots * slotSize + (offset / 15) * slotSize;
-    return height;
   }
 
   Column getCalendarItems(
