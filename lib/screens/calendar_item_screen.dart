@@ -60,7 +60,8 @@ class _CalendarItemScreenState extends State<CalendarItemScreen> {
                 final navigator = Navigator.of(context);
                 Utility.reorderCalendarItems(
                     calendarItems!, calendarItem.begin);
-                await calendarItemBoundary.addCalendarItems(calendarItems);
+                await calendarItemBoundary
+                    .addOrUpdateCalendarItems(calendarItems);
                 await calendarItemBoundary.removeCalendarItem(calendarItem);
                 navigator.pop();
               },

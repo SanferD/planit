@@ -12,7 +12,8 @@ class CalendarItemBoundary {
     });
   }
 
-  Future<void> addCalendarItems(final List<CalendarItem> calendarItems) async {
+  Future<void> addOrUpdateCalendarItems(
+      final List<CalendarItem> calendarItems) async {
     await isar.writeTxn(() async {
       for (var i = 0; i < calendarItems.length; i++) {
         isar.calendarItems.put(calendarItems[i]);

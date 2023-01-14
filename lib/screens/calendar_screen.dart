@@ -6,6 +6,7 @@ import 'package:planit/models/schedule_type.dart';
 import 'package:planit/screens/calendar_item_screen.dart';
 import 'package:planit/utility.dart';
 import 'package:planit/screens/calendar_item_screen_arguments.dart';
+import 'package:planit/widgets/calendar_screen_list_item.dart';
 import 'dart:async';
 
 class CalendarScreen extends StatefulWidget {
@@ -30,17 +31,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime get now => widget.now;
   Timer? timer;
 
-  void initTimer() {
+  void initTimerToPeriodicallyResetHorizontalNowTimeLine() {
     if (timer != null && timer!.isActive) return;
 
-    timer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      //job
+    timer = Timer.periodic(const Duration(seconds: 30), (_) {
       setState(() {});
     });
   }
 
   double get currentTimeOffset {
-    final now = DateTime.now();
     final minutes =
         (now.difference(DateTime(now.year, now.month, now.day))).inMinutes;
     final numberOfSlots = (minutes / 15).floor();
@@ -50,91 +49,37 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return height;
   }
 
+  bool get isToday {
+    final now2 = DateTime.now();
+    return now2.year == now.year &&
+        now2.month == now.month &&
+        now2.day == now.day;
+  }
+
   @override
   void dispose() {
     timer?.cancel();
     super.dispose();
   }
 
+  DateTime get nowZero => DateTime(now.year, now.month, now.day);
+  DateTime get nowJustBeforeTomorrow =>
+      DateTime(now.year, now.month, now.day, 23, 59, 59);
+
   @override
   Widget build(BuildContext context) {
-    initTimer();
+    initTimerToPeriodicallyResetHorizontalNowTimeLine();
     final calendarItemBoundary = GetIt.I.get<CalendarItemBoundary>();
-    final lowerInclusive = DateTime(now.year, now.month, now.day);
-    final upperInclusive = DateTime(now.year, now.month, now.day, 23, 59, 59);
     calendarItemsFuture =
-        calendarItemBoundary.listCalendarItems(lowerInclusive, upperInclusive);
+        calendarItemBoundary.listCalendarItems(nowZero, nowJustBeforeTomorrow);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(Utility.MMMEd(now)),
         actions: [
-          FutureBuilder(
-              future: calendarItemBoundary.listCalendarItems(
-                  lowerInclusive, upperInclusive),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Text("");
-
-                final calendarItems = snapshot.data!;
-                calendarItems
-                    .sort((one, two) => one.begin.isBefore(two.begin) ? -1 : 1);
-                if (calendarItems.isEmpty) return const Text("");
-                CalendarItem? firstRelativeCalendarItem;
-                for (var i = 0; i < calendarItems.length; i++) {
-                  firstRelativeCalendarItem = calendarItems[i];
-                  if (firstRelativeCalendarItem.scheduleType ==
-                      ScheduleType.relative) break;
-                }
-                if (firstRelativeCalendarItem == null) return const Text("");
-                return ElevatedButton(
-                  onPressed: () async {
-                    final timeOfDayOfFirstRelativeCalendarItem =
-                        TimeOfDay.fromDateTime(
-                            firstRelativeCalendarItem!.begin);
-                    final newTimeOfDay = await showTimePicker(
-                        context: context,
-                        initialTime: timeOfDayOfFirstRelativeCalendarItem);
-                    if (newTimeOfDay == null) return;
-                    if (timeOfDayOfFirstRelativeCalendarItem == newTimeOfDay)
-                      return;
-
-                    final newBegin = DateTime(now.year, now.month, now.day,
-                        newTimeOfDay.hour, newTimeOfDay.minute);
-                    Utility.reorderCalendarItems(calendarItems, newBegin);
-                    await calendarItemBoundary.addCalendarItems(calendarItems);
-                    setState(() {
-                      calendarItemsFuture = calendarItemBoundary
-                          .listCalendarItems(lowerInclusive, upperInclusive);
-                    });
-                  },
-                  child: Text(Utility.formatTime(calendarItems[0].begin)),
-                );
-              }),
-          IconButton(
-            onPressed: () {
-              widget.resetToToday();
-              if (widget.jumpToNow == null) return;
-              widget.jumpToNow!();
-            },
-            icon: const Icon(Icons.calendar_today),
-          ),
-          /* DISABLED for now since only relative items are implemented
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () async {
-              final arguments = CalendarItemScreenArguments(now: now);
-              await Navigator.pushNamed(
-                context,
-                CalendarItemScreen.routeName,
-                arguments: arguments,
-              );
-              setState(() {
-                calendarItemsFuture = calendarItemBoundary.listCalendarItems(
-                    lowerInclusive, upperInclusive);
-              });
-            },
-          ),
-          */
+          getRelativeTimeOffsetWidget(calendarItemBoundary),
+          getJumpToNowWidget(),
+          // getAddCalendarItemWidget(context, calendarItemBoundary, lowerInclusive, upperInclusive),
         ],
       ),
       body: FutureBuilder<List<CalendarItem>>(
@@ -143,13 +88,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
           if (!snapshot.hasData) return const Text("Loading...");
 
           final calendarItems = snapshot.data!;
-          calendarItems
-              .sort((one, two) => one.begin.isBefore(two.begin) ? -1 : 1);
-
-          widget.jumpToNow = () {
-            final height = MediaQuery.of(context).size.height;
-            widget.scrollController.jumpTo(currentTimeOffset + 40 - height / 2);
-          };
+          sortCalendarItemsByBegin(calendarItems);
+          setJumpToNowIfNotSet(context);
 
           return SingleChildScrollView(
             controller: widget.scrollController,
@@ -158,8 +98,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     now: now,
                     updateLitsOfItems: () {
                       setState(() {
-                        calendarItemsFuture = calendarItemBoundary
-                            .listCalendarItems(lowerInclusive, upperInclusive);
+                        reloadCalendarItemsFuture(calendarItemBoundary);
                       });
                     },
                   )
@@ -169,14 +108,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       getCalendarItems(
                         context,
                         calendarItems,
-                        now,
                         CalendarScreen.slotSize,
                         calendarItemBoundary,
-                        lowerInclusive,
-                        upperInclusive,
                       ),
-                      getNowHorizontalTimeLine(
-                          context, CalendarScreen.slotSize),
+                      if (isToday)
+                        getNowHorizontalTimeLine(
+                            context, CalendarScreen.slotSize),
                     ],
                   ),
           );
@@ -185,126 +122,133 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget getNowHorizontalTimeLine(BuildContext context, int slotSize) {
-    return Padding(
-      padding: EdgeInsets.only(top: currentTimeOffset - 6.5),
-      child: const Divider(
-        thickness: 2,
-        color: Colors.red,
-      ),
+  FutureBuilder<List<CalendarItem>> getRelativeTimeOffsetWidget(
+      CalendarItemBoundary calendarItemBoundary) {
+    return FutureBuilder(
+        future: calendarItemBoundary.listCalendarItems(
+            nowZero, nowJustBeforeTomorrow), // != this.calendarItemsFuture
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Text("");
+
+          final calendarItems = snapshot.data!;
+          sortCalendarItemsByBegin(calendarItems);
+          if (calendarItems.isEmpty) return const Text("");
+          CalendarItem? firstRelativeCalendarItem =
+              getFirstRelativeCalendarItem(calendarItems);
+          if (firstRelativeCalendarItem == null) return const Text("");
+          return ElevatedButton(
+            onPressed: () async {
+              final timeOfDayOfFirstRelativeCalendarItem =
+                  TimeOfDay.fromDateTime(firstRelativeCalendarItem.begin);
+              final newTimeOfDay = await showTimePicker(
+                  context: context,
+                  initialTime: timeOfDayOfFirstRelativeCalendarItem);
+              if (newTimeOfDay == null) return;
+              if (timeOfDayOfFirstRelativeCalendarItem == newTimeOfDay) return;
+
+              final newBegin = DateTime(now.year, now.month, now.day,
+                  newTimeOfDay.hour, newTimeOfDay.minute);
+              Utility.reorderCalendarItems(calendarItems, newBegin);
+              await calendarItemBoundary
+                  .addOrUpdateCalendarItems(calendarItems);
+              setState(() {
+                reloadCalendarItemsFuture(calendarItemBoundary);
+              });
+            },
+            child: Text(Utility.formatTime(calendarItems[0].begin)),
+          );
+        });
+  }
+
+  IconButton getJumpToNowWidget() {
+    return IconButton(
+      onPressed: () {
+        widget.resetToToday();
+        if (widget.jumpToNow == null) return;
+        widget.jumpToNow!();
+      },
+      icon: const Icon(Icons.calendar_today),
     );
   }
 
-  Column getCalendarItems(
+  void setJumpToNowIfNotSet(BuildContext context) {
+    if (widget.jumpToNow != null) return;
+    widget.jumpToNow = () {
+      final height = MediaQuery.of(context).size.height;
+      widget.scrollController.jumpTo(currentTimeOffset + 40 - height / 2);
+    };
+  }
+
+  IconButton getAddCalendarItemWidget(
       BuildContext context,
-      List<CalendarItem> calendarItems,
-      DateTime now,
-      int slotSize,
       CalendarItemBoundary calendarItemBoundary,
       DateTime lowerInclusive,
       DateTime upperInclusive) {
-    final mediaWidth = MediaQuery.of(context).size.width;
-    var previousDateTime = DateTime(now.year, now.month, now.day);
-    return Column(
-      children: List.generate(
-        calendarItems.length,
-        (index) {
-          final calendarItem = calendarItems[index];
-          final numSlots = calendarItem.durationMinutes / 15.0;
-          final windowDateTimeInMinutes =
-              Utility.durationInMinutes(previousDateTime, calendarItem.begin);
-          previousDateTime = calendarItem.end;
-          return Padding(
-            padding: EdgeInsets.only(
-              top: (windowDateTimeInMinutes / 15.0) * slotSize,
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  height: numSlots * slotSize,
-                  width: mediaWidth * .1,
-                  child: IconButton(
-                    onPressed: () async {
-                      final calendarItem2 = CalendarItem(
-                        title: "",
-                        beginInclusive: calendarItem.end,
-                        endInclusive: calendarItem.end.add(
-                          const Duration(minutes: 15),
-                        ),
-                        scheduleType: ScheduleType.relative,
-                      );
-                      if (index + 1 >= calendarItems.length) {
-                        await calendarItemBoundary
-                            .addCalendarItem(calendarItem2);
-                      } else {
-                        calendarItems.insert(index + 1, calendarItem2);
-                        Utility.reorderCalendarItems(
-                            calendarItems.sublist(index + 2),
-                            calendarItem2.end);
-                        await calendarItemBoundary
-                            .addCalendarItems(calendarItems.sublist(index + 1));
-                      }
-                      setState(() {
-                        calendarItemsFuture = calendarItemBoundary
-                            .listCalendarItems(lowerInclusive, upperInclusive);
-                      });
-                    },
-                    icon: const Icon(Icons.add_circle_rounded),
-                    iconSize: 26,
-                  ),
-                ),
-                Expanded(
-                  child: SizedBox(
-                    height: numSlots * slotSize,
-                    child: Card(
-                      color: Colors.green[400],
-                      child: CalendarScreenListItem(
-                        calendarItem: calendarItem,
-                        updateItem: (updatedCalendarItem) async {
-                          final index =
-                              calendarItems.indexOf(updatedCalendarItem);
-                          assert(index != -1,
-                              "$updatedCalendarItem, $calendarItems");
-                          Utility.reorderCalendarItems(
-                              calendarItems.sublist(index + 1),
-                              updatedCalendarItem.end);
-                          await calendarItemBoundary
-                              .addCalendarItems(calendarItems.sublist(index));
-                          setState(() {
-                            calendarItemsFuture =
-                                calendarItemBoundary.listCalendarItems(
-                                    lowerInclusive, upperInclusive);
-                          });
-                        },
-                        onTap: () async {
-                          final arguments = CalendarItemScreenArguments(
-                            calendarItem: calendarItem,
-                            now: now,
-                            calendarItems: calendarItems
-                                .sublist(index + 1)
-                                .map((item) => CalendarItem.clone(item))
-                                .toList(),
-                          );
-                          await Navigator.pushNamed(
-                            context,
-                            CalendarItemScreen.routeName,
-                            arguments: arguments,
-                          );
-                          setState(() {
-                            calendarItemsFuture =
-                                calendarItemBoundary.listCalendarItems(
-                                    lowerInclusive, upperInclusive);
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+    // not used
+    return IconButton(
+      icon: const Icon(Icons.add_circle_outline),
+      onPressed: () async {
+        final arguments = CalendarItemScreenArguments(now: now);
+        await Navigator.pushNamed(
+          context,
+          CalendarItemScreen.routeName,
+          arguments: arguments,
+        );
+        setState(() {
+          calendarItemsFuture = calendarItemBoundary.listCalendarItems(
+              lowerInclusive, upperInclusive);
+        });
+      },
+    );
+  }
+
+  CalendarItem? getFirstRelativeCalendarItem(List<CalendarItem> calendarItems) {
+    CalendarItem? firstRelativeCalendarItem;
+    for (var i = 0; i < calendarItems.length; i++) {
+      firstRelativeCalendarItem = calendarItems[i];
+      if (firstRelativeCalendarItem.scheduleType == ScheduleType.relative)
+        break;
+    }
+    return firstRelativeCalendarItem;
+  }
+
+  void sortCalendarItemsByBegin(List<CalendarItem> calendarItems) {
+    calendarItems.sort((one, two) => one.begin.isBefore(two.begin) ? -1 : 1);
+  }
+
+  void reloadCalendarItemsFuture(CalendarItemBoundary calendarItemBoundary) {
+    calendarItemsFuture =
+        calendarItemBoundary.listCalendarItems(nowZero, nowJustBeforeTomorrow);
+  }
+
+  IconButton getAddRelativeCalendarItemAfterThisOneIconButton(
+      CalendarItem calendarItem,
+      List<CalendarItem> calendarItems,
+      int index,
+      CalendarItemBoundary calendarItemBoundary) {
+    return IconButton(
+      onPressed: () async {
+        final calendarItem2 = CalendarItem(
+          title: "",
+          beginInclusive: calendarItem.end,
+          endInclusive: calendarItem.end.add(
+            const Duration(minutes: 15),
+          ),
+          scheduleType: ScheduleType.relative,
+        );
+        calendarItems.insert(index + 1, calendarItem2);
+        if (index + 2 < calendarItems.length) {
+          Utility.reorderCalendarItems(
+              calendarItems.sublist(index + 2), calendarItem2.end);
+        }
+        await calendarItemBoundary
+            .addOrUpdateCalendarItems(calendarItems.sublist(index + 1));
+        setState(() {
+          reloadCalendarItemsFuture(calendarItemBoundary);
+        });
+      },
+      icon: const Icon(Icons.add_circle_rounded),
+      iconSize: 26,
     );
   }
 
@@ -315,9 +259,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
       children: List<Widget>.generate(
         24 * 4,
         (index) {
-          final dateTime = DateTime(now.year, now.month, now.day,
-              (index / 4).floor(), ((index % 4) * 15).round());
+          final dateTimeLine = nowZero.add(Duration(
+            hours: (index / 4).floor(),
+            minutes: ((index % 4) * 15).round(),
+          ));
           final isHour = (index % 4) == 0;
+          var isNewDayLine = dateTimeLine.hour == 0 && dateTimeLine.minute == 0;
           return Container(
             width: mediaWidth,
             height: slotSize.toDouble(),
@@ -333,17 +280,110 @@ class _CalendarScreenState extends State<CalendarScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  Utility.formatTime(dateTime),
+                  Utility.formatTime(dateTimeLine),
                   style: const TextStyle(
                     fontSize: 8,
                   ),
                 ),
-                if (dateTime.hour == 0 && dateTime.minute == 0)
-                  Text(Utility.dayOnly(dateTime)),
+                if (isNewDayLine) Text(Utility.dayOnly(dateTimeLine)),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Column getCalendarItems(
+      BuildContext context,
+      List<CalendarItem> calendarItems,
+      int slotSize,
+      CalendarItemBoundary calendarItemBoundary) {
+    final mediaWidth = MediaQuery.of(context).size.width;
+    var previousDateTime = nowZero;
+    return Column(
+      children: List.generate(
+        calendarItems.length,
+        (index) {
+          final calendarItem = calendarItems[index];
+          final numSlotsForItem = calendarItem.durationMinutes / 15.0;
+          final windowDateTimeInMinutes =
+              Utility.durationInMinutes(previousDateTime, calendarItem.begin);
+          previousDateTime = calendarItem.end;
+          return Padding(
+            padding: EdgeInsets.only(
+              top: (windowDateTimeInMinutes / 15.0) * slotSize,
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  height: numSlotsForItem * slotSize,
+                  width: mediaWidth * .1,
+                  child: getAddRelativeCalendarItemAfterThisOneIconButton(
+                      calendarItem, calendarItems, index, calendarItemBoundary),
+                ),
+                Expanded(
+                  child: SizedBox(
+                    height: numSlotsForItem * slotSize,
+                    child: getCalendarItemCard(calendarItem, calendarItems,
+                        calendarItemBoundary, index, context),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Card getCalendarItemCard(
+      CalendarItem calendarItem,
+      List<CalendarItem> calendarItems,
+      CalendarItemBoundary calendarItemBoundary,
+      int index,
+      BuildContext context) {
+    return Card(
+      color: Colors.green[400],
+      child: CalendarScreenListItem(
+        calendarItem: calendarItem,
+        updateItem: (updatedCalendarItem) async {
+          Utility.reorderCalendarItems(
+              calendarItems.sublist(index + 1), updatedCalendarItem.end);
+          await calendarItemBoundary
+              .addOrUpdateCalendarItems(calendarItems.sublist(index));
+          setState(() {
+            reloadCalendarItemsFuture(calendarItemBoundary);
+          });
+        },
+        onLongPress: () async {
+          final arguments = CalendarItemScreenArguments(
+            calendarItem: calendarItem,
+            now: now,
+            calendarItems: calendarItems
+                .sublist(index + 1)
+                .map((item) => CalendarItem.clone(item))
+                .toList(),
+          );
+          await Navigator.pushNamed(
+            context,
+            CalendarItemScreen.routeName,
+            arguments: arguments,
+          );
+          setState(() {
+            reloadCalendarItemsFuture(calendarItemBoundary);
+          });
+        },
+      ),
+    );
+  }
+
+  Widget getNowHorizontalTimeLine(BuildContext context, int slotSize) {
+    return Padding(
+      padding: EdgeInsets.only(top: currentTimeOffset - 6.5),
+      child: const Divider(
+        thickness: 2,
+        color: Colors.red,
       ),
     );
   }
@@ -384,127 +424,5 @@ class NoCalendarItems extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class CalendarScreenListItem extends StatelessWidget {
-  final CalendarItem calendarItem;
-  final void Function()? onTap;
-  final void Function(CalendarItem) updateItem;
-  final TextEditingController durationController;
-  final TextEditingController titleController;
-
-  CalendarScreenListItem(
-      {super.key,
-      required this.calendarItem,
-      this.onTap,
-      required this.updateItem})
-      : durationController = TextEditingController.fromValue(
-          TextEditingValue(
-            text: calendarItem.durationMinutes.toString(),
-          ),
-        ),
-        titleController = TextEditingController.fromValue(
-          TextEditingValue(
-            text: calendarItem.title,
-          ),
-        );
-
-  @override
-  Widget build(BuildContext context) {
-    const subtitleStyle = TextStyle(fontSize: 12);
-    const trailingTextStyle = TextStyle(fontSize: 12);
-    final isShort = calendarItem.durationMinutes < 15;
-    durationController.selection = TextSelection.fromPosition(
-        TextPosition(offset: durationController.text.length));
-    return ListTile(
-      visualDensity: isShort ? const VisualDensity(vertical: -2.1) : null,
-      minVerticalPadding: -20,
-      leading: CircleAvatar(
-        radius: isShort ? 17 : 20,
-        child: Focus(
-          onFocusChange: onSubmittedDuration,
-          child: TextField(
-            decoration: InputDecoration(
-              contentPadding: isShort
-                  ? const EdgeInsets.only(left: 7, bottom: 15)
-                  : const EdgeInsets.only(left: 10, bottom: 10),
-              border: InputBorder.none,
-            ),
-            keyboardType: TextInputType.number,
-            controller: durationController,
-            style: TextStyle(fontSize: isShort ? 16 : 18),
-          ),
-        ),
-      ),
-      title: Padding(
-        padding: EdgeInsets.only(left: 2.0, top: isShort ? 4.5 : 0.0),
-        child: Focus(
-          onFocusChange: onSubmittedTitle,
-          child: TextField(
-            decoration: InputDecoration(
-              contentPadding: EdgeInsets.only(top: isShort ? -13.0 : 0.0),
-              border: InputBorder.none,
-            ),
-            controller: titleController,
-            style: TextStyle(fontSize: isShort ? 16 : 18),
-          ),
-        ),
-      ),
-      subtitle: (calendarItem.durationMinutes >= 15)
-          ? Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                Text(
-                  Utility.formatTime(calendarItem.begin),
-                  style: subtitleStyle,
-                ),
-                const Text(" - ", style: subtitleStyle),
-                Text(
-                  Utility.formatTime(calendarItem.end),
-                  style: subtitleStyle,
-                ),
-              ],
-            )
-          : null,
-      trailing: Chip(
-        visualDensity: const VisualDensity(vertical: -4),
-        padding: const EdgeInsets.all(0.0),
-        label: Text(
-          calendarItem.scheduleType.display,
-          style: trailingTextStyle,
-        ),
-        avatar: CircleAvatar(
-          child: Text(
-            calendarItem.scheduleType.display.characters.first.toUpperCase(),
-            style: trailingTextStyle,
-          ),
-        ),
-      ),
-      onLongPress: onTap,
-    );
-  }
-
-  void onSubmittedTitle(value) {
-    final newTitle = titleController.text;
-    if (newTitle.length > 100) {
-      print("$newTitle is too large");
-      return;
-    }
-    if (calendarItem.title == newTitle) return;
-    calendarItem.title = newTitle;
-    updateItem(calendarItem);
-  }
-
-  void onSubmittedDuration(_) {
-    final newDurationMinutes = int.tryParse(durationController.text);
-    if (newDurationMinutes == null) return;
-    if (newDurationMinutes < 0 || newDurationMinutes > 60 * 24) {
-      print("$newDurationMinutes is too large");
-      return;
-    }
-    if (newDurationMinutes == calendarItem.durationMinutes) return;
-    calendarItem.durationMinutes = newDurationMinutes;
-    updateItem(calendarItem);
   }
 }
