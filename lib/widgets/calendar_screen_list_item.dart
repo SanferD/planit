@@ -1,6 +1,7 @@
 import "package:flutter/material.dart";
 import "package:planit/models/calendar_item.dart";
 import "package:planit/utility.dart";
+import "package:planit/constants.dart";
 
 class CalendarScreenListItem extends StatelessWidget {
   final CalendarItem calendarItem;
@@ -37,7 +38,7 @@ class CalendarScreenListItem extends StatelessWidget {
       minVerticalPadding: -20,
       leading: getDurationWidget(isShort),
       title: getTitleWidget(isShort),
-      subtitle: (calendarItem.durationMinutes >= 15)
+      subtitle: (calendarItem.durationMinutes >= Constants.minutesPerSlot)
           ? getDateRangeWidget(subtitleStyle)
           : null,
       trailing: getScheduleTypeWidget(trailingTextStyle),

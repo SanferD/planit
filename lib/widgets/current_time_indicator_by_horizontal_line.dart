@@ -78,7 +78,7 @@ class _CurrentTimeIndicatorByHorizontalLineState
         top: widget.horizontalTimelineTopPosition,
         width: MediaQuery.of(context).size.width,
         child: const Divider(
-          thickness: 5,
+          thickness: 2,
           color: Colors.red,
         ),
       ),
