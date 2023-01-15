@@ -47,4 +47,9 @@ class CalendarItem {
 
   @override
   operator ==(covariant CalendarItem other) => other.id == id;
+
+  @override
+  String toString() {
+    return title;
+  }
 }

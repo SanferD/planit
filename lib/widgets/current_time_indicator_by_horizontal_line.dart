@@ -25,11 +25,11 @@ class _CurrentTimeIndicatorByHorizontalLineState
   Timer? timer;
   var hasAddedListenerToUpdateHorizontalTimeline = false;
 
-  void initTimerToPeriodicallyResetHorizontalNowTimeLine() {
+  void initTimerToPeriodicallyResetHorizontalNowTimeLine(BuildContext context) {
     if (timer != null && timer!.isActive) return;
 
-    timer = Timer.periodic(const Duration(seconds: 15), (_) {
-      setState(() {});
+    timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      setState(scrollControllerListener(context));
     });
   }
 
@@ -59,7 +59,6 @@ class _CurrentTimeIndicatorByHorizontalLineState
 
   @override
   void initState() {
-    initTimerToPeriodicallyResetHorizontalNowTimeLine();
     super.initState();
   }
 
@@ -71,6 +70,7 @@ class _CurrentTimeIndicatorByHorizontalLineState
 
   @override
   Widget build(BuildContext context) {
+    initTimerToPeriodicallyResetHorizontalNowTimeLine(context);
     addListenerToUpdateHorizontalTimeline(context);
     return Visibility(
       visible: widget.horizontalTimelineTopPosition >= 0.0,

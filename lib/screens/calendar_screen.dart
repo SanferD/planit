@@ -31,23 +31,15 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  late Future<List<CalendarItem>> calendarItemsFuture;
+  Future<List<CalendarItem>>? calendarItemsFuture;
+  var canMoveCalendarItems = false;
 
   DateTime get now => widget.now;
 
   bool get showHorizontalTimeline => isToday;
 
-  double get currentTimeOffsetBottom {
-    final minutes = Utility.durationInMinutes(now, nowJustBeforeTomorrow);
-    final numberOfSlots = (minutes / Constants.minutesPerSlot).floor();
-    final singleSlotOffset = minutes % Constants.minutesPerSlot;
-    final offset = numberOfSlots * CalendarScreen.slotSize +
-        (singleSlotOffset / Constants.minutesPerSlot) * CalendarScreen.slotSize;
-    return offset;
-  }
-
   double get currentTimeOffsetTop {
-    final minutes = Utility.durationInMinutes(nowZero, now);
+    final minutes = Utility.durationInMinutes(nowZero, DateTime.now());
     final numberOfSlots = (minutes / Constants.minutesPerSlot).floor();
     final singleSlotOffset = minutes % Constants.minutesPerSlot;
     final offset = numberOfSlots * CalendarScreen.slotSize +
@@ -69,8 +61,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final calendarItemBoundary = GetIt.I.get<CalendarItemBoundary>();
-    calendarItemsFuture =
-        calendarItemBoundary.listCalendarItems(nowZero, nowJustBeforeTomorrow);
+    if (calendarItemsFuture == null) {
+      reloadCalendarItemsFuture(calendarItemBoundary);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -79,6 +72,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           getRelativeTimeOffsetWidget(calendarItemBoundary),
           getJumpToNowWidget(),
           // getAddCalendarItemWidget(context, calendarItemBoundary, lowerInclusive, upperInclusive),
+          getEnableMovingWidget(),
         ],
       ),
       body: FutureBuilder<List<CalendarItem>>(
@@ -190,6 +184,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
     };
   }
 
+  Widget getEnableMovingWidget() {
+    return Checkbox(
+      value: canMoveCalendarItems,
+      onChanged: (newValue) {
+        setState(() {
+          canMoveCalendarItems = newValue ?? false;
+        });
+      },
+    );
+  }
+
   IconButton getAddCalendarItemWidget(
       BuildContext context,
       CalendarItemBoundary calendarItemBoundary,
@@ -206,8 +211,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           arguments: arguments,
         );
         setState(() {
-          calendarItemsFuture = calendarItemBoundary.listCalendarItems(
-              lowerInclusive, upperInclusive);
+          reloadCalendarItemsFuture(calendarItemBoundary);
         });
       },
     );
@@ -260,6 +264,51 @@ class _CalendarScreenState extends State<CalendarScreen> {
       },
       icon: const Icon(Icons.add_circle_rounded),
       iconSize: 26,
+    );
+  }
+
+  Widget getMoveRelativeCalendarItemButtons(
+      CalendarItemBoundary calendarItemBoundary,
+      List<CalendarItem> calendarItems,
+      int index,
+      bool showDownButton) {
+    return Column(
+      children: [
+        if (index > 0)
+          IconButton(
+            icon: const Icon(Icons.arrow_circle_up),
+            onPressed: () async {
+              Utility.swapConsecutiveCalendarStartEndDateTimes(
+                calendarItems[index - 1],
+                calendarItems[index],
+              );
+              await calendarItemBoundary.addOrUpdateCalendarItems([
+                calendarItems[index - 1],
+                calendarItems[index],
+              ]);
+              setState(() {
+                reloadCalendarItemsFuture(calendarItemBoundary);
+              });
+            },
+          ),
+        if (showDownButton && (index + 1) < calendarItems.length)
+          IconButton(
+            icon: const Icon(Icons.arrow_circle_down),
+            onPressed: () async {
+              Utility.swapConsecutiveCalendarStartEndDateTimes(
+                calendarItems[index],
+                calendarItems[index + 1],
+              );
+              await calendarItemBoundary.addOrUpdateCalendarItems([
+                calendarItems[index],
+                calendarItems[index + 1],
+              ]);
+              setState(() {
+                reloadCalendarItemsFuture(calendarItemBoundary);
+              });
+            },
+          ),
+      ],
     );
   }
 
@@ -333,26 +382,41 @@ class _CalendarScreenState extends State<CalendarScreen> {
         final calendarItem = calendarItems[index];
         final numSlotsForItem =
             calendarItem.durationMinutes / Constants.minutesPerSlot;
-        final windowDateTimeInMinutes =
+        final windowDurationInMinutes =
             Utility.durationInMinutes(previousDateTime, calendarItem.begin);
         return Padding(
           padding: EdgeInsets.only(
             top:
-                (windowDateTimeInMinutes / Constants.minutesPerSlot) * slotSize,
+                (windowDurationInMinutes / Constants.minutesPerSlot) * slotSize,
           ),
           child: Row(
             children: [
               SizedBox(
                 height: numSlotsForItem * slotSize,
                 width: mediaWidth * .1,
-                child: getAddRelativeCalendarItemAfterThisOneIconButton(
-                    calendarItem, calendarItems, index, calendarItemBoundary),
+                child: canMoveCalendarItems
+                    ? getMoveRelativeCalendarItemButtons(
+                        calendarItemBoundary,
+                        calendarItems,
+                        index,
+                        calendarItem.durationMinutes > Constants.minutesPerSlot)
+                    : getAddRelativeCalendarItemAfterThisOneIconButton(
+                        calendarItem,
+                        calendarItems,
+                        index,
+                        calendarItemBoundary,
+                      ),
               ),
               Expanded(
                 child: SizedBox(
                   height: numSlotsForItem * slotSize,
-                  child: getCalendarItemCard(calendarItem, calendarItems,
-                      calendarItemBoundary, index, context),
+                  child: getCalendarItemCard(
+                    calendarItem,
+                    calendarItems,
+                    calendarItemBoundary,
+                    index,
+                    context,
+                  ),
                 ),
               ),
             ],

@@ -48,4 +48,14 @@ class Utility {
       nextBegin = current.end;
     }
   }
+
+  static void swapConsecutiveCalendarStartEndDateTimes(
+      CalendarItem one, CalendarItem two) {
+    final oneDurationMinutes = one.durationMinutes;
+    final twoDurationMinutes = two.durationMinutes;
+    two.begin = one.begin;
+    two.end = two.begin.add(Duration(minutes: twoDurationMinutes));
+    one.begin = two.end;
+    one.end = one.begin.add(Duration(minutes: oneDurationMinutes));
+  }
 }
