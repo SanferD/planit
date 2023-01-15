@@ -17,14 +17,13 @@ class CalendarScreen extends StatefulWidget {
   void Function()? jumpToNow; // set/updated once calendarItems are loaded
   final ScrollController timelineScrollController;
   final ScrollController calendarItemsScrollController;
-  final ScrollController horizontalNowLineScrollController;
 
   static const slotSize = 80;
+  static const minutesPerSlot = 15;
 
   CalendarScreen({Key? key, required this.now, required this.resetToToday})
       : timelineScrollController = ScrollController(),
         calendarItemsScrollController = ScrollController(),
-        horizontalNowLineScrollController = ScrollController(),
         super(key: key);
 
   @override
@@ -40,19 +39,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   double get currentTimeOffsetBottom {
     final minutes = Utility.durationInMinutes(now, nowJustBeforeTomorrow);
-    final numberOfSlots = (minutes / 15).floor();
-    final singleSlotOffset = minutes % 15;
+    final numberOfSlots = (minutes / CalendarScreen.minutesPerSlot).floor();
+    final singleSlotOffset = minutes % CalendarScreen.minutesPerSlot;
     final offset = numberOfSlots * CalendarScreen.slotSize +
-        (singleSlotOffset / 15) * CalendarScreen.slotSize;
+        (singleSlotOffset / CalendarScreen.minutesPerSlot) *
+            CalendarScreen.slotSize;
     return offset;
   }
 
   double get currentTimeOffsetTop {
     final minutes = Utility.durationInMinutes(nowZero, now);
-    final numberOfSlots = (minutes / 15).floor();
-    final singleSlotOffset = minutes % 15;
+    final numberOfSlots = (minutes / CalendarScreen.minutesPerSlot).floor();
+    final singleSlotOffset = minutes % CalendarScreen.minutesPerSlot;
     final offset = numberOfSlots * CalendarScreen.slotSize +
-        (singleSlotOffset / 15) * CalendarScreen.slotSize;
+        (singleSlotOffset / CalendarScreen.minutesPerSlot) *
+            CalendarScreen.slotSize;
     return offset;
   }
 
@@ -185,8 +186,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
     if (widget.jumpToNow != null) return;
     widget.jumpToNow = () {
       final height = MediaQuery.of(context).size.height;
-      widget.calendarItemsScrollController
-          .jumpTo(currentTimeOffsetTop + 40 - height / 2);
+      const extraOffsetFoundEmpirically = 40;
+      widget.calendarItemsScrollController.jumpTo(
+          currentTimeOffsetTop + extraOffsetFoundEmpirically - height / 2);
     };
   }
 
@@ -243,7 +245,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           title: "",
           beginInclusive: calendarItem.end,
           endInclusive: calendarItem.end.add(
-            const Duration(minutes: 15),
+            const Duration(minutes: CalendarScreen.minutesPerSlot),
           ),
           scheduleType: ScheduleType.relative,
         );
@@ -265,15 +267,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   Widget getTimelineBorder(DateTime now, BuildContext context, int slotSize) {
     final mediaWidth = MediaQuery.of(context).size.width;
+    const slotsPerHour = 60 / CalendarScreen.minutesPerSlot;
     return ListView.builder(
       controller: widget.timelineScrollController,
-      itemCount: 24 * 4,
+      itemCount: 24 * slotsPerHour.toInt(),
       itemBuilder: (context, index) {
         final dateTimeLine = nowZero.add(Duration(
-          hours: (index / 4).floor(),
-          minutes: ((index % 4) * 15).round(),
+          hours: (index / slotsPerHour).floor(),
+          minutes:
+              ((index % slotsPerHour) * CalendarScreen.minutesPerSlot).round(),
         ));
-        final isHour = (index % 4) == 0;
+        final isHour = (index % slotsPerHour) == 0;
         var isNewDayLine = dateTimeLine.hour == 0 && dateTimeLine.minute == 0;
         return Container(
           width: mediaWidth,
@@ -324,17 +328,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
               previousDateTime, nowJustBeforeTomorrow);
           return Padding(
             padding: EdgeInsets.only(
-                top: (windowDateTimeInMinutes / 15.0) * slotSize),
+                top: (windowDateTimeInMinutes / CalendarScreen.minutesPerSlot) *
+                    slotSize),
             child: Container(),
           );
         }
         final calendarItem = calendarItems[index];
-        final numSlotsForItem = calendarItem.durationMinutes / 15.0;
+        final numSlotsForItem =
+            calendarItem.durationMinutes / CalendarScreen.minutesPerSlot;
         final windowDateTimeInMinutes =
             Utility.durationInMinutes(previousDateTime, calendarItem.begin);
         return Padding(
           padding: EdgeInsets.only(
-            top: (windowDateTimeInMinutes / 15.0) * slotSize,
+            top: (windowDateTimeInMinutes / CalendarScreen.minutesPerSlot) *
+                slotSize,
           ),
           child: Row(
             children: [
