@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:planit/boundaries/calendar_item_boundary.dart';
@@ -7,18 +9,22 @@ import 'package:planit/screens/calendar_item_screen.dart';
 import 'package:planit/utility.dart';
 import 'package:planit/screens/calendar_item_screen_arguments.dart';
 import 'package:planit/widgets/calendar_screen_list_item.dart';
-import 'dart:async';
+import 'package:planit/widgets/current_time_indicator_by_horizontal_line.dart';
 
 class CalendarScreen extends StatefulWidget {
   final DateTime now;
   final void Function() resetToToday;
   void Function()? jumpToNow; // set/updated once calendarItems are loaded
-  final ScrollController scrollController;
+  final ScrollController timelineScrollController;
+  final ScrollController calendarItemsScrollController;
+  final ScrollController horizontalNowLineScrollController;
 
   static const slotSize = 80;
 
   CalendarScreen({Key? key, required this.now, required this.resetToToday})
-      : scrollController = ScrollController(),
+      : timelineScrollController = ScrollController(),
+        calendarItemsScrollController = ScrollController(),
+        horizontalNowLineScrollController = ScrollController(),
         super(key: key);
 
   @override
@@ -29,24 +35,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
   late Future<List<CalendarItem>> calendarItemsFuture;
 
   DateTime get now => widget.now;
-  Timer? timer;
 
-  void initTimerToPeriodicallyResetHorizontalNowTimeLine() {
-    if (timer != null && timer!.isActive) return;
+  bool get showHorizontalTimeline => isToday;
 
-    timer = Timer.periodic(const Duration(seconds: 30), (_) {
-      setState(() {});
-    });
+  double get currentTimeOffsetBottom {
+    final minutes = Utility.durationInMinutes(now, nowJustBeforeTomorrow);
+    final numberOfSlots = (minutes / 15).floor();
+    final singleSlotOffset = minutes % 15;
+    final offset = numberOfSlots * CalendarScreen.slotSize +
+        (singleSlotOffset / 15) * CalendarScreen.slotSize;
+    return offset;
   }
 
-  double get currentTimeOffset {
-    final minutes =
-        (now.difference(DateTime(now.year, now.month, now.day))).inMinutes;
+  double get currentTimeOffsetTop {
+    final minutes = Utility.durationInMinutes(nowZero, now);
     final numberOfSlots = (minutes / 15).floor();
-    final offset = minutes % 15;
-    final height = numberOfSlots * CalendarScreen.slotSize +
-        (offset / 15) * CalendarScreen.slotSize;
-    return height;
+    final singleSlotOffset = minutes % 15;
+    final offset = numberOfSlots * CalendarScreen.slotSize +
+        (singleSlotOffset / 15) * CalendarScreen.slotSize;
+    return offset;
   }
 
   bool get isToday {
@@ -56,19 +63,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
         now2.day == now.day;
   }
 
-  @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
-  }
-
   DateTime get nowZero => DateTime(now.year, now.month, now.day);
   DateTime get nowJustBeforeTomorrow =>
       DateTime(now.year, now.month, now.day, 23, 59, 59);
 
   @override
   Widget build(BuildContext context) {
-    initTimerToPeriodicallyResetHorizontalNowTimeLine();
     final calendarItemBoundary = GetIt.I.get<CalendarItemBoundary>();
     calendarItemsFuture =
         calendarItemBoundary.listCalendarItems(nowZero, nowJustBeforeTomorrow);
@@ -91,32 +91,42 @@ class _CalendarScreenState extends State<CalendarScreen> {
           sortCalendarItemsByBegin(calendarItems);
           setJumpToNowIfNotSet(context);
 
-          return SingleChildScrollView(
-            controller: widget.scrollController,
-            child: calendarItems.isEmpty
-                ? NoCalendarItems(
-                    now: now,
-                    updateLitsOfItems: () {
-                      setState(() {
-                        reloadCalendarItemsFuture(calendarItemBoundary);
-                      });
-                    },
-                  )
-                : Stack(
+          return calendarItems.isEmpty
+              ? NoCalendarItems(
+                  now: now,
+                  updateLitsOfItems: () {
+                    setState(() {
+                      reloadCalendarItemsFuture(calendarItemBoundary);
+                    });
+                  },
+                )
+              : NotificationListener<ScrollNotification>(
+                  child: Stack(
                     children: [
-                      getTimelineBorder(now, context, CalendarScreen.slotSize),
-                      getCalendarItems(
+                      getTimelineBorder(
+                        now,
+                        context,
+                        CalendarScreen.slotSize,
+                      ),
+                      getCalendarItemsWidget(
                         context,
                         calendarItems,
                         CalendarScreen.slotSize,
                         calendarItemBoundary,
                       ),
                       if (isToday)
-                        getNowHorizontalTimeLine(
-                            context, CalendarScreen.slotSize),
+                        CurrentTimeIndicatorByHorizontalLine(
+                          getCurrentTimeOffset: () => currentTimeOffsetTop,
+                          scrollController:
+                              widget.calendarItemsScrollController,
+                        ),
                     ],
                   ),
-          );
+                  onNotification: (scrollInfo) {
+                    widget.timelineScrollController
+                        .jumpTo(widget.calendarItemsScrollController.offset);
+                    return true;
+                  });
         },
       ),
     );
@@ -175,7 +185,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     if (widget.jumpToNow != null) return;
     widget.jumpToNow = () {
       final height = MediaQuery.of(context).size.height;
-      widget.scrollController.jumpTo(currentTimeOffset + 40 - height / 2);
+      widget.calendarItemsScrollController
+          .jumpTo(currentTimeOffsetTop + 40 - height / 2);
     };
   }
 
@@ -252,88 +263,98 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Column getTimelineBorder(DateTime now, BuildContext context, int slotSize) {
+  Widget getTimelineBorder(DateTime now, BuildContext context, int slotSize) {
     final mediaWidth = MediaQuery.of(context).size.width;
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: List<Widget>.generate(
-        24 * 4,
-        (index) {
-          final dateTimeLine = nowZero.add(Duration(
-            hours: (index / 4).floor(),
-            minutes: ((index % 4) * 15).round(),
-          ));
-          final isHour = (index % 4) == 0;
-          var isNewDayLine = dateTimeLine.hour == 0 && dateTimeLine.minute == 0;
-          return Container(
-            width: mediaWidth,
-            height: slotSize.toDouble(),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  width: isHour ? 3 : 1,
-                ),
+    return ListView.builder(
+      controller: widget.timelineScrollController,
+      itemCount: 24 * 4,
+      itemBuilder: (context, index) {
+        final dateTimeLine = nowZero.add(Duration(
+          hours: (index / 4).floor(),
+          minutes: ((index % 4) * 15).round(),
+        ));
+        final isHour = (index % 4) == 0;
+        var isNewDayLine = dateTimeLine.hour == 0 && dateTimeLine.minute == 0;
+        return Container(
+          width: mediaWidth,
+          height: slotSize.toDouble(),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                width: isHour ? 3 : 1,
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  Utility.formatTime(dateTimeLine),
-                  style: const TextStyle(
-                    fontSize: 8,
-                  ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                Utility.formatTime(dateTimeLine),
+                style: const TextStyle(
+                  fontSize: 8,
                 ),
-                if (isNewDayLine) Text(Utility.dayOnly(dateTimeLine)),
-              ],
-            ),
-          );
-        },
-      ),
+              ),
+              if (isNewDayLine) Text(Utility.dayOnly(dateTimeLine)),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Column getCalendarItems(
+  DateTime getPreviousDateTime(List<CalendarItem> calendarItems, int index) {
+    if (index == 0 || calendarItems.isEmpty) return nowZero;
+    return calendarItems[index - 1].end;
+  }
+
+  Widget getCalendarItemsWidget(
       BuildContext context,
       List<CalendarItem> calendarItems,
       int slotSize,
       CalendarItemBoundary calendarItemBoundary) {
     final mediaWidth = MediaQuery.of(context).size.width;
-    var previousDateTime = nowZero;
-    return Column(
-      children: List.generate(
-        calendarItems.length,
-        (index) {
-          final calendarItem = calendarItems[index];
-          final numSlotsForItem = calendarItem.durationMinutes / 15.0;
-          final windowDateTimeInMinutes =
-              Utility.durationInMinutes(previousDateTime, calendarItem.begin);
-          previousDateTime = calendarItem.end;
+    return ListView.builder(
+      controller: widget.calendarItemsScrollController,
+      itemCount: calendarItems.length + 1,
+      itemBuilder: (context, index) {
+        final previousDateTime = getPreviousDateTime(calendarItems, index);
+        if (index == calendarItems.length) {
+          final windowDateTimeInMinutes = Utility.durationInMinutes(
+              previousDateTime, nowJustBeforeTomorrow);
           return Padding(
             padding: EdgeInsets.only(
-              top: (windowDateTimeInMinutes / 15.0) * slotSize,
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  height: numSlotsForItem * slotSize,
-                  width: mediaWidth * .1,
-                  child: getAddRelativeCalendarItemAfterThisOneIconButton(
-                      calendarItem, calendarItems, index, calendarItemBoundary),
-                ),
-                Expanded(
-                  child: SizedBox(
-                    height: numSlotsForItem * slotSize,
-                    child: getCalendarItemCard(calendarItem, calendarItems,
-                        calendarItemBoundary, index, context),
-                  ),
-                ),
-              ],
-            ),
+                top: (windowDateTimeInMinutes / 15.0) * slotSize),
+            child: Container(),
           );
-        },
-      ),
+        }
+        final calendarItem = calendarItems[index];
+        final numSlotsForItem = calendarItem.durationMinutes / 15.0;
+        final windowDateTimeInMinutes =
+            Utility.durationInMinutes(previousDateTime, calendarItem.begin);
+        return Padding(
+          padding: EdgeInsets.only(
+            top: (windowDateTimeInMinutes / 15.0) * slotSize,
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                height: numSlotsForItem * slotSize,
+                width: mediaWidth * .1,
+                child: getAddRelativeCalendarItemAfterThisOneIconButton(
+                    calendarItem, calendarItems, index, calendarItemBoundary),
+              ),
+              Expanded(
+                child: SizedBox(
+                  height: numSlotsForItem * slotSize,
+                  child: getCalendarItemCard(calendarItem, calendarItems,
+                      calendarItemBoundary, index, context),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -374,16 +395,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
             reloadCalendarItemsFuture(calendarItemBoundary);
           });
         },
-      ),
-    );
-  }
-
-  Widget getNowHorizontalTimeLine(BuildContext context, int slotSize) {
-    return Padding(
-      padding: EdgeInsets.only(top: currentTimeOffset - 6.5),
-      child: const Divider(
-        thickness: 2,
-        color: Colors.red,
       ),
     );
   }
