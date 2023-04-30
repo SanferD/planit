@@ -1,17 +1,6 @@
 # planit
 
-A new Flutter project.
+Flutter App to plan out your day using relative timeboxes.
 
-## Getting Started
+https://user-images.githubusercontent.com/9338001/235371938-7d4e4cdc-3cd9-4386-a2ed-33767168875f.mp4
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-# planit
